@@ -1,0 +1,59 @@
+{
+  "name": "Jordan",
+  "available_minutes": 90,
+  "preferences": [],
+  "pets": [
+    {
+      "name": "Mochi",
+      "breed": "Labrador",
+      "age": 3,
+      "special_needs": [],
+      "tasks": [
+        {
+          "name": "Feed Mochi at 7:30 daily",
+          "duration_minutes": 15,
+          "priority": 4,
+          "category": "feeding",
+          "preferred_time": "morning",
+          "frequency": "daily",
+          "time": "07:30",
+          "due_date": "2026-04-27",
+          "completed": false
+        },
+        {
+          "name": "Feed mochi in the morning",
+          "duration_minutes": 15,
+          "priority": 4,
+          "category": "feeding",
+          "preferred_time": "morning",
+          "frequency": "once",
+          "time": null,
+          "due_date": "2026-04-27",
+          "completed": false
+        },
+        {
+          "name": "Walk mochi for 25 minutes tonight",
+          "duration_minutes": 25,
+          "priority": 3,
+          "category": "walk",
+          "preferred_time": "evening",
+          "frequency": "once",
+          "time": null,
+          "due_date": "2026-04-27",
+          "completed": false
+        },
+        {
+          "name": "Clean litter for mochi",
+          "duration_minutes": 15,
+          "priority": 3,
+          "category": "hygiene",
+          "preferred_time": "anytime",
+          "frequency": "once",
+          "time": null,
+          "due_date": "2026-04-27",
+          "completed": false
+        }
+      ]
+    }
+  ]
+}

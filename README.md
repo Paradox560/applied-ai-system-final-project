@@ -1,12 +1,20 @@
 # PawPal+ Natural Language Task Planner
 
+Demo Video: https://www.loom.com/share/df8ded0e51a04b629b42b508cd6a25b8
+
 PawPal+ is a Streamlit application that helps pet owners convert natural-language requests into structured care tasks and daily plans. The system combines task parsing, validation, scheduling, and conflict detection so users can go from "Feed Mochi at 7:30 and walk tonight" to an actionable schedule in one flow.
 
 Natural-language parsing supports two modes:
 - deterministic parser (default fallback, fully reproducible),
 - optional Gemini-assisted extraction when `GEMINI_API_KEY` is available in `.env`.
 
-## Original Project (Modules 1-3)
+## Reflection
+
+This project reinforced that practical AI systems need both intelligence and control points. The strongest design choice was keeping a human checkpoint because AI can sometimes make errors but placing these checkpoints allows me to review and ensure that the code is functional in smaller increments so 
+the AI can continue work as normally knowing the code is correct. This really helped me ideate and work together with AI as a partner as opposed to AI
+being the sole programmer of the project.
+
+## Original Project (Modules 2)
 
 The original project was PawPal+, a task scheduler for pet care that let users manually enter tasks with duration, priority, and category, then generate a constrained daily plan. It included recurrence support (daily/weekly), conflict detection for exact-time collisions, and filtering by status/pet. This final version keeps those capabilities and adds natural-language task creation as a core behavior.
 
@@ -92,7 +100,3 @@ python scripts/evaluate_nl_tasks.py
 - Evaluation harness result on predefined prompts: `3/3 cases passed`, `average confidence 0.90`, `1 unresolved candidate` (expected ambiguity case).
 - What worked: deterministic extraction and normalization for common phrases.
 - What did not fully work: highly implicit prompts still need user confirmation.
-
-## Reflection
-
-This project reinforced that practical AI systems need both intelligence and control points. The strongest design choice was keeping a human checkpoint between parse and persistence, which improved trust without making the system feel slow. The major next step is richer language coverage (for relative dates and overlapping time windows) while preserving reproducibility.
