@@ -7,7 +7,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import date, timedelta
-from pawpal_system import Task, Pet, Owner, Scheduler
+from pawpal_system import Task, Pet, Owner, Scheduler, create_validated_task
+from nl_task_parser import parse_prompt_to_candidates, validate_candidate
 
 
 def test_mark_complete_changes_status():
@@ -215,3 +216,59 @@ def test_detect_conflicts_ignores_completed_tasks():
     warnings = scheduler.detect_conflicts()
 
     assert warnings == []
+
+
+def test_parse_single_prompt_extracts_core_fields():
+    candidates = parse_prompt_to_candidates("Feed Mochi at 07:30 daily", ["Mochi"])
+    assert len(candidates) == 1
+    task = candidates[0]
+    assert task.pet_name == "Mochi"
+    assert task.category == "feeding"
+    assert task.frequency == "daily"
+    assert task.time == "07:30"
+
+
+def test_parse_multi_task_prompt_returns_multiple_candidates():
+    prompt = "Feed Mochi at 08:00 and walk Mochi for 20 minutes tonight"
+    candidates = parse_prompt_to_candidates(prompt, ["Mochi"])
+    assert len(candidates) == 2
+    assert {candidate.category for candidate in candidates} == {"feeding", "walk"}
+
+
+def test_parse_prompt_without_pet_requires_confirmation():
+    candidates = parse_prompt_to_candidates("Give meds at 09:00", ["Mochi"])
+    assert len(candidates) == 1
+    ok, message = validate_candidate(candidates[0])
+    assert ok is False
+    assert "Pet is required" in message
+
+
+def test_create_validated_task_normalizes_time_and_synonyms():
+    task = create_validated_task(
+        name="Give meds",
+        duration_minutes=10,
+        priority=4,
+        category="meds",
+        preferred_time="tonight",
+        frequency="everyday",
+        time="7:05",
+    )
+    assert task.category == "medication"
+    assert task.preferred_time == "evening"
+    assert task.frequency == "daily"
+    assert task.time == "07:05"
+
+
+def test_create_validated_task_rejects_invalid_time():
+    try:
+        create_validated_task(
+            name="Bad time task",
+            duration_minutes=15,
+            priority=3,
+            category="feeding",
+            time="25:00",
+        )
+    except ValueError as err:
+        assert "Invalid time value" in str(err)
+    else:
+        raise AssertionError("Expected ValueError for invalid time.")
