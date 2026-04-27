@@ -5,6 +5,7 @@ Backend classes for pet care scheduling.
 
 import json
 import os
+import re
 from datetime import date, timedelta
 
 # Maps preferred_time strings to sort order (morning first, anytime last)
@@ -20,6 +21,83 @@ _CATEGORY_WEIGHT = {
     "grooming":    5,
     "enrichment":  5,
 }
+
+VALID_CATEGORIES = set(_CATEGORY_WEIGHT.keys())
+VALID_PREFERRED_TIMES = set(_TIME_ORDER.keys())
+VALID_FREQUENCIES = {"once", "daily", "weekly"}
+
+
+def normalize_category(category: str) -> str:
+    """Normalize category text and return a valid category value."""
+    if category is None:
+        raise ValueError("Category is required.")
+    synonyms = {
+        "meds": "medication",
+        "medicine": "medication",
+        "pill": "medication",
+        "bathroom": "hygiene",
+        "cleaning": "hygiene",
+        "clean": "hygiene",
+        "play": "enrichment",
+        "exercise": "walk",
+        "food": "feeding",
+        "feed": "feeding",
+        "bath": "grooming",
+    }
+    normalized = category.strip().lower()
+    normalized = synonyms.get(normalized, normalized)
+    if normalized not in VALID_CATEGORIES:
+        raise ValueError(f"Unsupported category: {category}")
+    return normalized
+
+
+def normalize_preferred_time(preferred_time: str) -> str:
+    """Normalize preferred time slot text to a valid value."""
+    if preferred_time is None:
+        return "anytime"
+    synonyms = {
+        "night": "evening",
+        "tonight": "evening",
+        "noon": "afternoon",
+        "am": "morning",
+        "pm": "evening",
+    }
+    normalized = preferred_time.strip().lower()
+    normalized = synonyms.get(normalized, normalized)
+    if normalized not in VALID_PREFERRED_TIMES:
+        raise ValueError(f"Unsupported preferred_time: {preferred_time}")
+    return normalized
+
+
+def normalize_frequency(frequency: str) -> str:
+    """Normalize recurrence frequency to once, daily, or weekly."""
+    if frequency is None:
+        return "once"
+    synonyms = {
+        "everyday": "daily",
+        "each day": "daily",
+        "every day": "daily",
+    }
+    normalized = frequency.strip().lower()
+    normalized = synonyms.get(normalized, normalized)
+    if normalized not in VALID_FREQUENCIES:
+        raise ValueError(f"Unsupported frequency: {frequency}")
+    return normalized
+
+
+def normalize_time(time_str: str) -> str | None:
+    """Validate and normalize HH:MM input, or return None."""
+    if not time_str:
+        return None
+    cleaned = time_str.strip()
+    if not re.fullmatch(r"\d{1,2}:\d{2}", cleaned):
+        raise ValueError(f"Invalid time format: {time_str}")
+    hour, minute = cleaned.split(":")
+    h = int(hour)
+    m = int(minute)
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        raise ValueError(f"Invalid time value: {time_str}")
+    return f"{h:02d}:{m:02d}"
 
 
 class Task:
@@ -386,3 +464,33 @@ class Scheduler:
                 lines.append(f"  - {task.name} ({task.duration_minutes} min)")
 
         return "\n".join(lines)
+
+
+def create_validated_task(
+    name: str,
+    duration_minutes: int,
+    priority: int,
+    category: str,
+    preferred_time: str = "anytime",
+    frequency: str = "once",
+    time: str = None,
+    due_date: date = None,
+) -> Task:
+    """Create a Task after validating and normalizing user-provided fields."""
+    if not name or not name.strip():
+        raise ValueError("Task name is required.")
+    if int(duration_minutes) <= 0:
+        raise ValueError("Duration must be positive.")
+    if not (1 <= int(priority) <= 5):
+        raise ValueError("Priority must be between 1 and 5.")
+
+    return Task(
+        name=name.strip(),
+        duration_minutes=int(duration_minutes),
+        priority=int(priority),
+        category=normalize_category(category),
+        preferred_time=normalize_preferred_time(preferred_time),
+        frequency=normalize_frequency(frequency),
+        time=normalize_time(time),
+        due_date=due_date,
+    )

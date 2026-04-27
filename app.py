@@ -1,5 +1,7 @@
 import streamlit as st
-from pawpal_system import Owner, Pet, Task, Scheduler
+import os
+from pawpal_system import Owner, Pet, Scheduler, create_validated_task
+from nl_task_parser import candidate_to_task, parse_prompt_to_candidates, validate_candidate
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
@@ -20,6 +22,15 @@ if "owner" not in st.session_state:
     loaded = Owner.load_from_json(DATA_FILE)
     st.session_state.owner = loaded
     st.session_state.pets = {p.name: p for p in loaded.pets} if loaded else {}
+
+if st.button("Reset Data"):
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+    st.session_state.owner = None
+    st.session_state.pets = {}
+    st.session_state.nl_candidates = []
+    st.success("Saved data reset. You can now create a new owner and pets.")
+    st.rerun()
 
 # ---------------------------------------------------------------------------
 # Owner + pet setup
@@ -69,19 +80,74 @@ else:
         exact_time = st.text_input("Exact time (HH:MM, optional)", value="", placeholder="e.g. 08:00")
 
     if st.button("Add Task"):
-        pet = st.session_state.pets[selected_pet]
-        task = Task(
-            name=task_title,
-            duration_minutes=int(duration),
-            priority=priority,
-            category=category,
-            preferred_time=preferred_time,
-            frequency=frequency,
-            time=exact_time.strip() if exact_time.strip() else None,
-        )
-        pet.add_task(task)
-        _save()
-        st.success(f"Added '{task_title}' to {selected_pet}.")
+        try:
+            pet = st.session_state.pets[selected_pet]
+            task = create_validated_task(
+                name=task_title,
+                duration_minutes=int(duration),
+                priority=priority,
+                category=category,
+                preferred_time=preferred_time,
+                frequency=frequency,
+                time=exact_time.strip() if exact_time.strip() else None,
+            )
+            pet.add_task(task)
+            _save()
+            st.success(f"Added '{task_title}' to {selected_pet}.")
+        except ValueError as err:
+            st.error(f"Could not add task: {err}")
+
+    st.markdown("### Create Tasks From Natural Language")
+    parser_mode = st.radio(
+        "Parser mode",
+        ["Rule-based", "Gemini (if API key available)"],
+        horizontal=True,
+        help="Gemini mode falls back to rule-based parsing if the key is missing or the API call fails.",
+    )
+    nl_prompt = st.text_area(
+        "Describe tasks in plain English",
+        placeholder="Example: Feed Mochi at 07:30 daily and walk Mochi for 25 minutes tonight",
+    )
+    if st.button("Parse Prompt"):
+        use_llm = parser_mode.startswith("Gemini")
+        parsed = parse_prompt_to_candidates(nl_prompt, pet_options, use_llm=use_llm)
+        st.session_state.nl_candidates = parsed
+        if not parsed:
+            st.warning("No task candidates found. Try adding more detail.")
+
+    candidates = st.session_state.get("nl_candidates", [])
+    if candidates:
+        st.markdown("**Review parsed tasks before adding:**")
+        for idx, candidate in enumerate(candidates):
+            st.markdown(
+                f"- **Candidate {idx + 1}**: `{candidate.name}` | pet: `{candidate.pet_name or 'unresolved'}` | "
+                f"category: `{candidate.category}` | priority: `{candidate.priority}` | "
+                f"duration: `{candidate.duration_minutes}` | freq: `{candidate.frequency}` | "
+                f"time: `{candidate.time or candidate.preferred_time}` | confidence: `{candidate.confidence:.2f}`"
+            )
+            if candidate.warnings:
+                st.caption("Warnings: " + "; ".join(candidate.warnings))
+
+        if st.button("Approve & Add Parsed Tasks"):
+            created = 0
+            for candidate in candidates:
+                is_valid, validation_message = validate_candidate(candidate)
+                if not is_valid:
+                    st.warning(f"Skipped '{candidate.name}': {validation_message}")
+                    continue
+                pet = st.session_state.pets.get(candidate.pet_name)
+                if pet is None:
+                    st.warning(f"Skipped '{candidate.name}': pet '{candidate.pet_name}' not found.")
+                    continue
+                try:
+                    task = candidate_to_task(candidate)
+                    pet.add_task(task)
+                    created += 1
+                except ValueError as err:
+                    st.warning(f"Skipped '{candidate.name}': {err}")
+            _save()
+            st.success(f"Added {created} parsed task(s).")
+            st.session_state.nl_candidates = []
 
     # Show current tasks sorted by priority then time of day
     all_tasks = st.session_state.owner.get_all_tasks()
